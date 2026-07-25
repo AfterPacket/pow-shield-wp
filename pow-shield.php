@@ -45,6 +45,7 @@ function pow_shield_activate(): void
             "pow_shield_options",
             [
                 "enabled" => true,
+                "protect_login" => true,
                 "cookie_ttl" => 21600,
                 "bits_desktop" => 20,
                 "bits_mobile" => 18,

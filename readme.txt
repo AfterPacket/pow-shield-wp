@@ -20,7 +20,8 @@ PoW Shield stops abusive bot traffic by requiring each new visitor's browser to 
 * Adaptive difficulty — raises the bar automatically for IPs exhibiting bot-like behaviour
 * Mobile and privacy-browser aware (lower difficulty for slower devices)
 * Signed, HMAC-verified pass cookie (6-hour default TTL)
-* Automatic bypass for wp-admin, wp-login, REST API, cron, XML-RPC, feeds
+* wp-login.php is protected by default (GET and POST) to stop brute-force/credential-stuffing bots; toggle available if you need the legacy bypass
+* Automatic bypass for wp-admin, REST API, cron, XML-RPC, feeds
 * User-configurable excluded paths
 * APCu support for high-performance rate tracking; WordPress transients as fallback
 * Secret rotation with overlap (old cookies stay valid through the transition)
@@ -50,6 +51,11 @@ Yes. Unlike the standalone version, this plugin works at the PHP level via WordP
 Yes — add path fragments under Settings > PoW Shield > Excluded Paths.
 
 == Changelog ==
+
+= 1.0.3 =
+* wp-login.php is now gated by the PoW challenge by default (both GET and POST), closing a gap where brute-force/credential-stuffing bots hitting wp-login.php directly were never challenged.
+* Failed WordPress login attempts now feed the adaptive risk engine, raising PoW difficulty for offending IPs.
+* Added "Protect wp-login.php" setting to restore the previous full-bypass behavior if needed.
 
 = 1.0.0 =
 * Initial WordPress plugin release, ported from pow-shield-php.

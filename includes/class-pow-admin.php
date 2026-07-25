@@ -40,6 +40,7 @@ class Pow_Shield_Admin {
 
         return [
             'enabled'       => ! empty( $input['enabled'] ),
+            'protect_login' => ! empty( $input['protect_login'] ),
             'cookie_ttl'    => max( 300,  min( 86400, (int) ( $input['cookie_ttl']   ?? 21600 ) ) ),
             'bits_desktop'  => max( 16,   min( 24,    (int) ( $input['bits_desktop'] ?? 20    ) ) ),
             'bits_mobile'   => max( 14,   min( 22,    (int) ( $input['bits_mobile']  ?? 18    ) ) ),
@@ -67,6 +68,7 @@ class Pow_Shield_Admin {
 
         $opts = array_merge( [
             'enabled'       => true,
+            'protect_login' => true,
             'cookie_ttl'    => 21600,
             'bits_desktop'  => 20,
             'bits_mobile'   => 18,
@@ -103,6 +105,17 @@ class Pow_Shield_Admin {
                       <?php checked( ! empty( $opts['enabled'] ) ); ?>>
                     Gate all front-end GET/HEAD requests with a proof-of-work challenge
                   </label>
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Protect wp-login.php</th>
+                <td>
+                  <label>
+                    <input type="checkbox" name="pow_shield_options[protect_login]" value="1"
+                      <?php checked( ! empty( $opts['protect_login'] ) ); ?>>
+                    Require a solved PoW pass cookie before wp-login.php (GET and POST) is served
+                  </label>
+                  <p class="description">Recommended — stops credential-stuffing/brute-force bots that hit wp-login.php directly. Does not affect the WordPress session/auth cookies or how you log in; it only gates the request before WordPress sees it. Disable this if you have an external system that POSTs to wp-login.php directly without first loading it in a browser.</p>
                 </td>
               </tr>
               <tr>
@@ -145,7 +158,7 @@ class Pow_Shield_Admin {
                     rows="6" cols="50" class="large-text code"
                   ><?php echo esc_textarea( implode( "\n", (array) $opts['exclude_paths'] ) ); ?></textarea>
                   <p class="description">One path fragment per line. Requests whose URI contains a listed string skip the PoW check.<br>
-                  <code>/wp-admin/</code>, <code>/wp-login.php</code>, REST API, cron, and XML-RPC are always skipped automatically.</p>
+                  <code>/wp-admin/</code>, REST API, cron, and XML-RPC are always skipped automatically. <code>/wp-login.php</code> is gated by default — see "Protect wp-login.php" above.</p>
                 </td>
               </tr>
             </table>
