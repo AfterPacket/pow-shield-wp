@@ -19,6 +19,17 @@ class Pow_Shield_Core
 
         add_action("rest_api_init", [__CLASS__, "register_rest_routes"]);
         add_action("template_redirect", [__CLASS__, "maybe_challenge"], 1);
+        add_action("wp_login_failed", [__CLASS__, "on_login_failed"]);
+    }
+
+    /**
+     * Feed real WordPress login failures into the adaptive risk engine so
+     * an IP grinding through wp-login.php gets a harder PoW tier, even if
+     * it's a real browser carrying a valid pass cookie.
+     */
+    public static function on_login_failed(string $username): void
+    {
+        Pow_Shield_Tier::mark_failed(Pow_Shield_Tier::client_ip());
     }
 
     // ── REST endpoint ─────────────────────────────────────────────────────────
@@ -165,9 +176,15 @@ class Pow_Shield_Core
         }
 
         $uri = (string) ($_SERVER["REQUEST_URI"] ?? "");
+        $options = (array) get_option("pow_shield_options", []);
 
-        // Login
-        if (str_contains($uri, "/wp-login.php")) {
+        // Login — protected by default (brute-force target). Admins can opt
+        // back out to the legacy full-bypass via Settings > PoW Shield.
+        $is_login = str_contains($uri, "/wp-login.php");
+        $protect_login =
+            !array_key_exists("protect_login", $options) ||
+            !empty($options["protect_login"]);
+        if ($is_login && !$protect_login) {
             return true;
         }
 
@@ -189,14 +206,17 @@ class Pow_Shield_Core
             return true;
         }
 
-        // Only gate GET and HEAD
+        // Only gate GET and HEAD — except wp-login.php, whose actual
+        // credential submission arrives as POST and is the thing brute-force
+        // tools abuse, so it stays gated (behind the pass cookie) too.
         $method = strtoupper((string) ($_SERVER["REQUEST_METHOD"] ?? "GET"));
         if (!in_array($method, ["GET", "HEAD"], true)) {
-            return true;
+            if (!($is_login && $protect_login)) {
+                return true;
+            }
         }
 
         // User-defined excluded paths
-        $options = (array) get_option("pow_shield_options", []);
         $excludes = (array) ($options["exclude_paths"] ?? []);
         foreach ($excludes as $path) {
             $path = trim((string) $path);
