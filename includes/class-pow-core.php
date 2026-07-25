@@ -19,6 +19,13 @@ class Pow_Shield_Core
 
         add_action("rest_api_init", [__CLASS__, "register_rest_routes"]);
         add_action("template_redirect", [__CLASS__, "maybe_challenge"], 1);
+
+        // wp-login.php never fires template_redirect — it is a separate entry
+        // point that bypasses template-loader.php entirely — so the front-end
+        // gate above can never see it. login_init is the equivalent hook there,
+        // and it runs before wp-login.php processes any credentials.
+        add_action("login_init", [__CLASS__, "maybe_challenge_login"], 0);
+
         add_action("wp_login_failed", [__CLASS__, "on_login_failed"]);
     }
 
@@ -127,14 +134,82 @@ class Pow_Shield_Core
             return;
         }
 
-        $cookie_val = (string) ($_COOKIE["abp"] ?? "");
-        if ($cookie_val !== "") {
-            [$valid] = Pow_Shield_Verify::validate_pass_cookie($cookie_val);
-            if ($valid) {
+        if (self::has_valid_pass_cookie()) {
+            return;
+        }
+
+        self::send_challenge();
+        // send_challenge() exits
+    }
+
+    /**
+     * Gate for wp-login.php, reached via login_init because template_redirect
+     * does not fire on that entry point. Runs before wp-login.php dispatches
+     * its action, so unsolved requests never reach wp_signon() at all.
+     */
+    public static function maybe_challenge_login(): void
+    {
+        $options = (array) get_option("pow_shield_options", []);
+
+        $protect_login =
+            !array_key_exists("protect_login", $options) ||
+            !empty($options["protect_login"]);
+        if (!$protect_login) {
+            return;
+        }
+
+        // Never gate an already-authenticated user. They are by definition not
+        // the brute-force traffic being filtered, and locking a live admin out
+        // of their own login page is the one failure worth avoiding outright.
+        if (is_user_logged_in()) {
+            return;
+        }
+
+        // The expired-session prompt renders inside an iframe in wp-admin, and
+        // the challenge page sends X-Frame-Options: DENY, which would break it.
+        if (!empty($_REQUEST["interim-login"])) {
+            return;
+        }
+
+        // Logging out is not an attack surface and must always succeed.
+        $action = isset($_REQUEST["action"])
+            ? (string) $_REQUEST["action"]
+            : "login";
+        if ($action === "logout") {
+            return;
+        }
+
+        // User-defined excluded paths still take precedence.
+        $uri = (string) ($_SERVER["REQUEST_URI"] ?? "");
+        $excludes = (array) ($options["exclude_paths"] ?? []);
+        foreach ($excludes as $path) {
+            $path = trim((string) $path);
+            if ($path !== "" && str_contains($uri, $path)) {
                 return;
             }
         }
 
+        if (self::has_valid_pass_cookie()) {
+            return;
+        }
+
+        self::send_challenge();
+        // send_challenge() exits
+    }
+
+    private static function has_valid_pass_cookie(): bool
+    {
+        $cookie_val = (string) ($_COOKIE["abp"] ?? "");
+        if ($cookie_val === "") {
+            return false;
+        }
+
+        [$valid] = Pow_Shield_Verify::validate_pass_cookie($cookie_val);
+        return (bool) $valid;
+    }
+
+    private static function send_challenge(): void
+    {
         // Tell every WP caching plugin (SpeedyCache, WP Super Cache, W3TC,
         // WP Rocket, LiteSpeed Cache, etc.) NOT to cache the challenge page.
         // This must be defined before render() outputs anything.
