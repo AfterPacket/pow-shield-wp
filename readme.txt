@@ -53,7 +53,7 @@ Yes — add path fragments under Settings > PoW Shield > Excluded Paths.
 == Changelog ==
 
 = 1.0.3 =
-* wp-login.php is now gated by the PoW challenge by default (both GET and POST), closing a gap where brute-force/credential-stuffing bots hitting wp-login.php directly were never challenged.
+* wp-login.php is now gated by the PoW challenge by default (both GET and POST), closing a gap where brute-force/credential-stuffing bots hitting wp-login.php directly were never challenged. The gate hooks login_init, because wp-login.php is a separate entry point that never fires template_redirect and so was invisible to the front-end gate.
 * Failed WordPress login attempts now feed the adaptive risk engine, raising PoW difficulty for offending IPs.
 * Added "Protect wp-login.php" setting to restore the previous full-bypass behavior if needed.
 
